@@ -2,18 +2,18 @@
   width: 100%;
   font-family: "Segoe UI", sans-serif;
   font-size: 14px;
-  position: relative;   /* fix 6: overflow context for absolute dropdown */
-  overflow: visible;    /* fix 6: allow dropdown to escape the wrapper */
+  position: relative;
+  overflow: visible;   /* must not clip the absolute trigger area */
 }
 
-/* ── Main container ── */
+/* ── Input container ─────────────────────────────────────────────────────── */
 .mobile-input-container {
   display: flex;
   align-items: stretch;
   border: 1.5px solid #d0d0d0;
   border-radius: 4px;
-  overflow: visible;    /* fix 5: allow dropdown panel to overflow */
-  position: relative;   /* fix 5: stacking context */
+  position: relative;  /* stacking context; NOT overflow:hidden */
+  overflow: visible;   /* let nothing clip the trigger */
   background: #fff;
   height: 40px;
   transition: border-color 0.2s ease;
@@ -24,33 +24,30 @@
 .mobile-input-container.is-invalid   { border-color: #d13438; }
 .mobile-input-container.is-disabled  { background: #f3f2f1; opacity: 0.6; }
 
-/* ── Country Selector ── */
+/* ── Country selector (trigger only — panel is in a portal) ──────────────── */
 .country-selector {
-  position: relative;   /* anchor for the absolute dropdown panel */
   flex-shrink: 0;
-  /* No fixed width — let the button size to its content */
+  /* No position:relative needed — panel is portalled to document.body */
 }
 
-/* fix: width:auto + white-space:nowrap so "+971" never truncates */
 .country-selector-button {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: auto;            /* fix truncation: size to content, not container */
+  width: auto;           /* size to content — no truncation */
   height: 100%;
   padding: 0 10px;
   border: none;
   border-right: 1.5px solid #d0d0d0;
   background: transparent;
   cursor: pointer;
-  white-space: nowrap;    /* fix truncation: never wrap or ellipsize */
+  white-space: nowrap;   /* dial code never wraps or ellipsizes */
   outline: none;
 }
 
 .country-selector-button:hover:not(:disabled) { background: #f3f2f1; }
 .country-selector-button:disabled { cursor: default; }
 
-/* Flag image — sized for the trigger */
 .country-flag {
   width: 22px;
   height: 16px;
@@ -61,12 +58,11 @@
   vertical-align: middle;
 }
 
-/* Dial code in the trigger button — no flex-grow, no truncation */
 .country-dial {
   font-size: 13px;
   font-weight: 600;
   color: #323130;
-  white-space: nowrap;   /* fix truncation */
+  white-space: nowrap;
   flex-shrink: 0;
 }
 
@@ -76,19 +72,17 @@
   flex-shrink: 0;
 }
 
-/* ── Dropdown Panel ── */
+/* ── Dropdown panel (portalled into document.body) ───────────────────────── */
+/* position / top / left / z-index come from inline style set by the portal   */
 .country-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: -1px;
-  width: 280px;
   background: #ffffff;
   border: 1px solid #d0d0d0;
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 99999;        /* fix 4: above all PCF host elements */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
+  /* width is also set inline by the portal; 280px is the fallback */
+  min-width: 280px;
 }
 
 .country-search {
@@ -120,13 +114,13 @@
   cursor: pointer;
   font-size: 13px;
   color: #323130;
+  user-select: none;
   transition: background 0.1s;
 }
 
-.country-list-item:hover   { background: #f3f2f1; }
+.country-list-item:hover    { background: #f3f2f1; }
 .country-list-item.selected { background: #deecf9; font-weight: 600; }
 
-/* Flag image inside list rows — slightly smaller */
 .country-list-item .country-flag {
   width: 20px;
   height: 14px;
@@ -158,7 +152,7 @@
   text-align: center;
 }
 
-/* ── Phone Number Input ── */
+/* ── Phone number input ──────────────────────────────────────────────────── */
 .phone-number-input {
   flex: 1;
   height: 100%;
@@ -174,7 +168,7 @@
 .phone-number-input::placeholder { color: #a19f9d; }
 .phone-number-input:disabled      { cursor: default; }
 
-/* ── Validation messages ── */
+/* ── Validation messages ─────────────────────────────────────────────────── */
 .phone-error-message {
   margin-top: 4px;
   font-size: 12px;
