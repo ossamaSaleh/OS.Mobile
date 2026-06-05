@@ -80,7 +80,7 @@
   position: absolute;
   top: calc(100% + 2px);
   left: -1px;
-  width: 260px;
+  width: 180px;
   background: #fff;
   border: 1px solid #d0d0d0;
   border-radius: 4px;
@@ -136,19 +136,12 @@
 
 .country-list-item .country-flag {
   font-size: 16px;
-}
-
-.country-list-item .country-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.country-list-item .country-code {
-  color: #605e5c;
-  font-size: 12px;
   flex-shrink: 0;
+}
+
+.country-list-item .country-dial-code {
+  font-size: 13px;
+  color: inherit;
 }
 
 .country-list-empty {

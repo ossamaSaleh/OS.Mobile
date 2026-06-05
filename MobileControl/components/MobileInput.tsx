@@ -85,8 +85,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     return countries.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
-        c.dialCode.includes(q) ||
-        c.iso2.toLowerCase().includes(q)
+        c.dialCode.includes(q)
     );
   }, [searchQuery]);
 
@@ -182,12 +181,12 @@ const MobileInput: React.FC<MobileInputProps> = ({
                       key={country.iso2}
                       role="option"
                       aria-selected={country.iso2 === selectedCountry.iso2}
+                      aria-label={`${country.name} ${country.dialCode}`}
                       className={`country-list-item${country.iso2 === selectedCountry.iso2 ? ' selected' : ''}`}
                       onMouseDown={() => handleCountrySelect(country)}
                     >
                       <span className="country-flag">{country.flag}</span>
-                      <span className="country-name">{country.name}</span>
-                      <span className="country-code">{country.dialCode}</span>
+                      <span className="country-dial-code">{country.dialCode}</span>
                     </li>
                   ))
                 )}
