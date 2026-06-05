@@ -6,7 +6,7 @@ import {
   isSupportedCountry,
   CountryCode,
 } from 'libphonenumber-js';
-import metadata from 'libphonenumber-js/metadata.min.json';
+import examples from 'libphonenumber-js/examples.mobile.json';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -50,7 +50,7 @@ export const validatePhone = (
 export const getPlaceholderForCountry = (iso2: string): string => {
   try {
     if (!isSupportedCountry(iso2 as CountryCode)) return 'Enter phone number';
-    const example = getExampleNumber(iso2 as CountryCode, metadata as never);
+    const example = getExampleNumber(iso2 as CountryCode, examples as never);
     return example?.formatNational() ?? 'Enter phone number';
   } catch {
     return 'Enter phone number';

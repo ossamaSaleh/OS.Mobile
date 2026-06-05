@@ -57,6 +57,6 @@ export class MobileControl implements ComponentFramework.StandardControl<IInputs
             },
         });
 
-        ReactDOM.render(element, this._container);
+        ReactDOM.render(element as React.ReactElement, this._container);
     }
 }
