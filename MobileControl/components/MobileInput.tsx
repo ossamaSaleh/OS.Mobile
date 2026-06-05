@@ -1,6 +1,24 @@
 import * as React from 'react';
-import ReactCountryFlag from 'react-country-flag';
 import { countries, Country } from '../utils/countries';
+
+const CountryFlag: React.FC<{ iso2: string; name: string; className?: string }> = ({ iso2, name, className }) => (
+  <img
+    src={`https://flagcdn.com/w40/${iso2.toLowerCase()}.png`}
+    srcSet={`https://flagcdn.com/w80/${iso2.toLowerCase()}.png 2x`}
+    width={22}
+    height={16}
+    alt={name}
+    className={className}
+    onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget;
+      img.style.display = 'none';
+      const sibling = img.nextSibling as HTMLElement | null;
+      if (sibling && sibling.classList?.contains('flag-fallback')) {
+        sibling.style.display = 'inline';
+      }
+    }}
+  />
+);
 import {
   validatePhone,
   getPlaceholderForCountry,
@@ -141,12 +159,8 @@ const MobileInput: React.FC<MobileInputProps> = ({
             aria-haspopup="listbox"
             aria-expanded={isDropdownOpen}
           >
-            <ReactCountryFlag
-              countryCode={selectedCountry.iso2}
-              svg
-              className="country-flag"
-              aria-label={selectedCountry.name}
-            />
+            <CountryFlag iso2={selectedCountry.iso2} name={selectedCountry.name} className="country-flag" />
+            <span className="flag-fallback country-flag-emoji" style={{ display: 'none' }}>{selectedCountry.flag}</span>
             <span className="country-dial">{selectedCountry.dialCode}</span>
             <span className="dropdown-arrow">▾</span>
           </button>
@@ -173,12 +187,8 @@ const MobileInput: React.FC<MobileInputProps> = ({
                       className={`country-list-item${country.iso2 === selectedCountry.iso2 ? ' selected' : ''}`}
                       onMouseDown={() => handleCountrySelect(country)}
                     >
-                      <ReactCountryFlag
-                        countryCode={country.iso2}
-                        svg
-                        className="country-flag"
-                        aria-label={country.name}
-                      />
+                      <CountryFlag iso2={country.iso2} name={country.name} className="country-flag" />
+                      <span className="flag-fallback country-flag-emoji" style={{ display: 'none' }}>{country.flag}</span>
                       <span className="country-dial-code">{country.dialCode}</span>
                       <span className="country-name">{country.name}</span>
                     </li>
