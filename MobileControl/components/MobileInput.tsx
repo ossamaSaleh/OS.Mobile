@@ -1,4 +1,5 @@
 import * as React from 'react';
+import ReactCountryFlag from 'react-country-flag';
 import { countries, Country } from '../utils/countries';
 import {
   validatePhone,
@@ -140,7 +141,12 @@ const MobileInput: React.FC<MobileInputProps> = ({
             aria-haspopup="listbox"
             aria-expanded={isDropdownOpen}
           >
-            <span className="country-flag">{selectedCountry.flag}</span>
+            <ReactCountryFlag
+              countryCode={selectedCountry.iso2}
+              svg
+              className="country-flag"
+              aria-label={selectedCountry.name}
+            />
             <span className="country-dial">{selectedCountry.dialCode}</span>
             <span className="dropdown-arrow">▾</span>
           </button>
@@ -167,7 +173,12 @@ const MobileInput: React.FC<MobileInputProps> = ({
                       className={`country-list-item${country.iso2 === selectedCountry.iso2 ? ' selected' : ''}`}
                       onMouseDown={() => handleCountrySelect(country)}
                     >
-                      <span className="country-flag">{country.flag}</span>
+                      <ReactCountryFlag
+                        countryCode={country.iso2}
+                        svg
+                        className="country-flag"
+                        aria-label={country.name}
+                      />
                       <span className="country-dial-code">{country.dialCode}</span>
                       <span className="country-name">{country.name}</span>
                     </li>

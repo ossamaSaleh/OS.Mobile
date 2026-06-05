@@ -70,9 +70,11 @@
 }
 
 .country-flag {
-  font-size: 20px;
-  line-height: 1;
+  width: 22px !important;
+  height: 16px !important;
   flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 .country-dial {
@@ -151,8 +153,11 @@
 }
 
 .country-list-item .country-flag {
-  font-size: 16px;
+  width: 20px !important;
+  height: 14px !important;
   flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 .country-list-item .country-dial-code {
