@@ -1,6 +1,15 @@
 import * as React from 'react';
 import { countries, Country } from '../utils/countries';
+import {
+  validatePhone,
+  getPlaceholderForCountry,
+  formatAsYouType,
+  parseInitialValue,
+  ValidationResult,
+} from '../utils/validation';
+import './MobileInput.css';
 
+// Renders a real flag image from flagcdn.com — works cross-platform (no emoji)
 const CountryFlag: React.FC<{ iso2: string; name: string; className?: string }> = ({ iso2, name, className }) => (
   <img
     src={`https://flagcdn.com/w40/${iso2.toLowerCase()}.png`}
@@ -10,23 +19,11 @@ const CountryFlag: React.FC<{ iso2: string; name: string; className?: string }> 
     alt={name}
     className={className}
     onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-      const img = e.currentTarget;
-      img.style.display = 'none';
-      const sibling = img.nextSibling as HTMLElement | null;
-      if (sibling && sibling.classList?.contains('flag-fallback')) {
-        sibling.style.display = 'inline';
-      }
+      // Hide broken image — do NOT fall back to emoji (renders as "AE","US" on Windows)
+      e.currentTarget.style.visibility = 'hidden';
     }}
   />
 );
-import {
-  validatePhone,
-  getPlaceholderForCountry,
-  formatAsYouType,
-  parseInitialValue,
-  ValidationResult,
-} from '../utils/validation';
-import './MobileInput.css';
 
 export interface MobileInputProps {
   initialValue: string;
@@ -41,37 +38,43 @@ const MobileInput: React.FC<MobileInputProps> = ({
   onChange,
   onValidationChange,
 }) => {
-  const [selectedCountry, setSelectedCountry] = React.useState<Country>(() => {
-    return parseInitialValue(initialValue, countries).country;
-  });
-  const [localNumber, setLocalNumber] = React.useState<string>(() => {
-    return parseInitialValue(initialValue, countries).localNumber;
-  });
-  const [isTouched, setIsTouched] = React.useState<boolean>(false);
+  const parsed = React.useMemo(() => parseInitialValue(initialValue, countries), []);
+
+  const [selectedCountry, setSelectedCountry] = React.useState<Country>(parsed.country);
+  const [localNumber, setLocalNumber]         = React.useState<string>(parsed.localNumber);
+  const [isTouched, setIsTouched]             = React.useState<boolean>(false);
   const [validationResult, setValidationResult] = React.useState<ValidationResult | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = React.useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = React.useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen]   = React.useState<boolean>(false);
+  const [searchQuery, setSearchQuery]         = React.useState<string>('');
 
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-  const searchRef = React.useRef<HTMLInputElement>(null);
+  const dropdownRef    = React.useRef<HTMLDivElement>(null);   // wraps trigger + panel
+  const searchRef      = React.useRef<HTMLInputElement>(null);
+  const selectedItemRef = React.useRef<HTMLLIElement>(null);
 
-  // Close dropdown on outside click
+  // ── Outside-click: only register while dropdown is open ──────────────────
   React.useEffect(() => {
+    if (!isDropdownOpen) return;
+
     const handleOutsideClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
         setSearchQuery('');
       }
     };
+
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
+  }, [isDropdownOpen]);
 
-  // Focus search input when dropdown opens
+  // ── Auto-scroll selected item into view + focus search on open ───────────
   React.useEffect(() => {
-    if (isDropdownOpen && searchRef.current) {
-      setTimeout(() => searchRef.current?.focus(), 50);
-    }
+    if (!isDropdownOpen) return;
+    // Use rAF so the list is in the DOM before we scroll
+    const raf = requestAnimationFrame(() => {
+      selectedItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      searchRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [isDropdownOpen]);
 
   const placeholder = React.useMemo(
@@ -79,25 +82,33 @@ const MobileInput: React.FC<MobileInputProps> = ({
     [selectedCountry.iso2]
   );
 
-  const filteredCountries = React.useMemo(() => {
+  // ── Filter with empty-result safety fallback ──────────────────────────────
+  const filteredCountries: Country[] = React.useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return countries;
-    return countries.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.dialCode.includes(q)
+    return (
+      countries.filter(
+        (c) => c.name.toLowerCase().includes(q) || c.dialCode.includes(q)
+      ) || []
     );
   }, [searchQuery]);
 
   const containerClass = React.useMemo(() => {
-    const classes = ['mobile-input-container'];
+    const cls = ['mobile-input-container'];
     if (disabled) {
-      classes.push('is-disabled');
+      cls.push('is-disabled');
     } else if (isTouched && validationResult) {
-      classes.push(validationResult.isValid ? 'is-valid' : 'is-invalid');
+      cls.push(validationResult.isValid ? 'is-valid' : 'is-invalid');
     }
-    return classes.join(' ');
+    return cls.join(' ');
   }, [disabled, isTouched, validationResult]);
+
+  // ── Explicit toggle ───────────────────────────────────────────────────────
+  const handleToggleDropdown = React.useCallback(() => {
+    if (disabled) return;
+    setIsDropdownOpen((prev) => !prev);
+    if (isDropdownOpen) setSearchQuery('');
+  }, [disabled, isDropdownOpen]);
 
   const handleCountrySelect = (country: Country) => {
     setSelectedCountry(country);
@@ -117,8 +128,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     const formatted = formatAsYouType(raw, selectedCountry.iso2);
     setLocalNumber(formatted);
 
-    const e164Candidate = selectedCountry.dialCode + raw;
-    onChange(raw ? e164Candidate : '');
+    onChange(raw ? selectedCountry.dialCode + raw : '');
 
     if (isTouched) {
       if (!raw) {
@@ -149,18 +159,22 @@ const MobileInput: React.FC<MobileInputProps> = ({
   return (
     <div className="mobile-input-wrapper">
       <div className={containerClass}>
-        {/* Country Code Selector */}
+
+        {/* ── Country selector ── */}
         <div className="country-selector" ref={dropdownRef}>
           <button
             type="button"
             className="country-selector-button"
             disabled={disabled}
-            onClick={() => !disabled && setIsDropdownOpen((v: boolean) => !v)}
+            onClick={handleToggleDropdown}
             aria-haspopup="listbox"
             aria-expanded={isDropdownOpen}
           >
-            <CountryFlag iso2={selectedCountry.iso2} name={selectedCountry.name} className="country-flag" />
-            <span className="flag-fallback country-flag-emoji" style={{ display: 'none' }}>{selectedCountry.flag}</span>
+            <CountryFlag
+              iso2={selectedCountry.iso2}
+              name={selectedCountry.name}
+              className="country-flag"
+            />
             <span className="country-dial">{selectedCountry.dialCode}</span>
             <span className="dropdown-arrow">▾</span>
           </button>
@@ -179,27 +193,34 @@ const MobileInput: React.FC<MobileInputProps> = ({
                 {filteredCountries.length === 0 ? (
                   <li className="country-list-empty">No results</li>
                 ) : (
-                  filteredCountries.map((country: Country) => (
-                    <li
-                      key={country.iso2}
-                      role="option"
-                      aria-selected={country.iso2 === selectedCountry.iso2}
-                      className={`country-list-item${country.iso2 === selectedCountry.iso2 ? ' selected' : ''}`}
-                      onMouseDown={() => handleCountrySelect(country)}
-                    >
-                      <CountryFlag iso2={country.iso2} name={country.name} className="country-flag" />
-                      <span className="flag-fallback country-flag-emoji" style={{ display: 'none' }}>{country.flag}</span>
-                      <span className="country-dial-code">{country.dialCode}</span>
-                      <span className="country-name">{country.name}</span>
-                    </li>
-                  ))
+                  filteredCountries.map((country: Country) => {
+                    const isSelected = country.iso2 === selectedCountry.iso2;
+                    return (
+                      <li
+                        key={country.iso2}
+                        ref={isSelected ? selectedItemRef : undefined}
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`country-list-item${isSelected ? ' selected' : ''}`}
+                        onMouseDown={() => handleCountrySelect(country)}
+                      >
+                        <CountryFlag
+                          iso2={country.iso2}
+                          name={country.name}
+                          className="country-flag"
+                        />
+                        <span className="country-dial-code">{country.dialCode}</span>
+                        <span className="country-name">{country.name}</span>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             </div>
           )}
         </div>
 
-        {/* Phone Number Input */}
+        {/* ── Phone number input ── */}
         <input
           type="tel"
           className="phone-number-input"
@@ -212,16 +233,13 @@ const MobileInput: React.FC<MobileInputProps> = ({
         />
       </div>
 
-      {/* Validation feedback */}
       {isTouched && validationResult && !validationResult.isValid && (
         <div className="phone-error-message" role="alert">
           ⚠ {validationResult.errorMessage}
         </div>
       )}
-      {isTouched && validationResult && validationResult.isValid && (
-        <div className="phone-valid-message" role="status">
-          ✅
-        </div>
+      {isTouched && validationResult?.isValid && (
+        <div className="phone-valid-message" role="status">✅</div>
       )}
     </div>
   );

@@ -2,6 +2,8 @@
   width: 100%;
   font-family: "Segoe UI", sans-serif;
   font-size: 14px;
+  position: relative;   /* fix 6: overflow context for absolute dropdown */
+  overflow: visible;    /* fix 6: allow dropdown to escape the wrapper */
 }
 
 /* ── Main container ── */
@@ -10,65 +12,45 @@
   align-items: stretch;
   border: 1.5px solid #d0d0d0;
   border-radius: 4px;
-  overflow: visible;
-  position: relative;
+  overflow: visible;    /* fix 5: allow dropdown panel to overflow */
+  position: relative;   /* fix 5: stacking context */
   background: #fff;
   height: 40px;
   transition: border-color 0.2s ease;
 }
 
-.mobile-input-container:focus-within {
-  border-color: #0078d4;
-}
-
-.mobile-input-container.is-valid {
-  border-color: #107c10;
-}
-
-.mobile-input-container.is-invalid {
-  border-color: #d13438;
-}
-
-.mobile-input-container.is-disabled {
-  background: #f3f2f1;
-  opacity: 0.6;
-}
+.mobile-input-container:focus-within { border-color: #0078d4; }
+.mobile-input-container.is-valid     { border-color: #107c10; }
+.mobile-input-container.is-invalid   { border-color: #d13438; }
+.mobile-input-container.is-disabled  { background: #f3f2f1; opacity: 0.6; }
 
 /* ── Country Selector ── */
 .country-selector {
-  position: relative;
+  position: relative;   /* anchor for the absolute dropdown panel */
   flex-shrink: 0;
-  width: 110px;
-  min-width: 110px;
+  /* No fixed width — let the button size to its content */
 }
 
+/* fix: width:auto + white-space:nowrap so "+971" never truncates */
 .country-selector-button {
   display: flex;
   align-items: center;
-  gap: 5px;
-  width: 100%;
+  gap: 6px;
+  width: auto;            /* fix truncation: size to content, not container */
   height: 100%;
   padding: 0 10px;
   border: none;
   border-right: 1.5px solid #d0d0d0;
   background: transparent;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: #323130;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: nowrap;    /* fix truncation: never wrap or ellipsize */
   outline: none;
 }
 
-.country-selector-button:hover:not(:disabled) {
-  background: #f3f2f1;
-}
+.country-selector-button:hover:not(:disabled) { background: #f3f2f1; }
+.country-selector-button:disabled { cursor: default; }
 
-.country-selector-button:disabled {
-  cursor: default;
-}
-
+/* Flag image — sized for the trigger */
 .country-flag {
   width: 22px;
   height: 16px;
@@ -79,25 +61,18 @@
   vertical-align: middle;
 }
 
-.country-flag-emoji {
-  font-size: 18px;
-  line-height: 1;
-}
-
+/* Dial code in the trigger button — no flex-grow, no truncation */
 .country-dial {
   font-size: 13px;
   font-weight: 600;
   color: #323130;
-  flex: 1;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;   /* fix truncation */
+  flex-shrink: 0;
 }
 
 .dropdown-arrow {
   font-size: 10px;
   color: #605e5c;
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -111,7 +86,7 @@
   border: 1px solid #d0d0d0;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 9999;
+  z-index: 99999;        /* fix 4: above all PCF host elements */
   display: flex;
   flex-direction: column;
 }
@@ -127,15 +102,13 @@
   color: #323130;
 }
 
-.country-search::placeholder {
-  color: #a19f9d;
-}
+.country-search::placeholder { color: #a19f9d; }
 
 .country-list {
   list-style: none;
   margin: 0;
   padding: 4px 0;
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
@@ -150,15 +123,10 @@
   transition: background 0.1s;
 }
 
-.country-list-item:hover {
-  background: #f3f2f1;
-}
+.country-list-item:hover   { background: #f3f2f1; }
+.country-list-item.selected { background: #deecf9; font-weight: 600; }
 
-.country-list-item.selected {
-  background: #deecf9;
-  font-weight: 600;
-}
-
+/* Flag image inside list rows — slightly smaller */
 .country-list-item .country-flag {
   width: 20px;
   height: 14px;
@@ -171,7 +139,8 @@
   font-size: 13px;
   font-weight: 600;
   color: #323130;
-  min-width: 42px;
+  min-width: 44px;
+  white-space: nowrap;
 }
 
 .country-list-item .country-name {
@@ -202,15 +171,10 @@
   min-width: 0;
 }
 
-.phone-number-input::placeholder {
-  color: #a19f9d;
-}
+.phone-number-input::placeholder { color: #a19f9d; }
+.phone-number-input:disabled      { cursor: default; }
 
-.phone-number-input:disabled {
-  cursor: default;
-}
-
-/* ── Validation Messages ── */
+/* ── Validation messages ── */
 .phone-error-message {
   margin-top: 4px;
   font-size: 12px;
