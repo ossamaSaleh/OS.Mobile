@@ -1,20 +1,18 @@
 import * as React from 'react';
-import { parsePhoneNumber } from 'libphonenumber-js';
 import { countries, Country } from '../utils/countries';
 import {
   validatePhone,
   getPlaceholderForCountry,
   formatAsYouType,
+  parseInitialValue,
   ValidationResult,
 } from '../utils/validation';
 import './MobileInput.css';
 
-const DEFAULT_COUNTRY = countries[0]; // UAE
-
 export interface MobileInputProps {
   initialValue: string;
   disabled: boolean;
-  onChange: (value: string) => void;
+  onChange: (e164Value: string) => void;
   onValidationChange?: (isValid: boolean) => void;
 }
 
@@ -24,8 +22,12 @@ const MobileInput: React.FC<MobileInputProps> = ({
   onChange,
   onValidationChange,
 }) => {
-  const [selectedCountry, setSelectedCountry] = React.useState<Country>(DEFAULT_COUNTRY);
-  const [localNumber, setLocalNumber] = React.useState<string>('');
+  const [selectedCountry, setSelectedCountry] = React.useState<Country>(() => {
+    return parseInitialValue(initialValue, countries).country;
+  });
+  const [localNumber, setLocalNumber] = React.useState<string>(() => {
+    return parseInitialValue(initialValue, countries).localNumber;
+  });
   const [isTouched, setIsTouched] = React.useState<boolean>(false);
   const [validationResult, setValidationResult] = React.useState<ValidationResult | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState<boolean>(false);
@@ -33,27 +35,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
 
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
-
-  // Parse initialValue on mount
-  React.useEffect(() => {
-    if (initialValue && initialValue.trim().length > 0) {
-      try {
-        const parsed = parsePhoneNumber(initialValue);
-        if (parsed) {
-          const matchedCountry = countries.find((c) => c.iso2 === parsed.country);
-          if (matchedCountry) {
-            setSelectedCountry(matchedCountry);
-            setLocalNumber(parsed.formatNational());
-            return;
-          }
-        }
-      } catch {
-        // fall through to default
-      }
-    }
-    setSelectedCountry(DEFAULT_COUNTRY);
-    setLocalNumber('');
-  }, []);
 
   // Close dropdown on outside click
   React.useEffect(() => {
@@ -91,11 +72,13 @@ const MobileInput: React.FC<MobileInputProps> = ({
 
   const containerClass = React.useMemo(() => {
     const classes = ['mobile-input-container'];
-    if (isTouched && validationResult) {
+    if (disabled) {
+      classes.push('is-disabled');
+    } else if (isTouched && validationResult) {
       classes.push(validationResult.isValid ? 'is-valid' : 'is-invalid');
     }
     return classes.join(' ');
-  }, [isTouched, validationResult]);
+  }, [disabled, isTouched, validationResult]);
 
   const handleCountrySelect = (country: Country) => {
     setSelectedCountry(country);
@@ -103,9 +86,10 @@ const MobileInput: React.FC<MobileInputProps> = ({
     setSearchQuery('');
 
     if (isTouched && localNumber) {
-      const result = validatePhone(localNumber.replace(/\D/g, ''), country.dialCode, country.iso2);
+      const result = validatePhone(localNumber, country.dialCode, country.iso2, country.name);
       setValidationResult(result);
       onValidationChange?.(result.isValid);
+      onChange(result.e164 || country.dialCode + localNumber.replace(/\D/g, ''));
     }
   };
 
@@ -114,17 +98,17 @@ const MobileInput: React.FC<MobileInputProps> = ({
     const formatted = formatAsYouType(raw, selectedCountry.iso2);
     setLocalNumber(formatted);
 
+    const e164Candidate = selectedCountry.dialCode + raw;
+    onChange(raw ? e164Candidate : '');
+
     if (isTouched) {
-      if (raw.length === 0) {
+      if (!raw) {
         setValidationResult(null);
         onValidationChange?.(false);
       } else {
-        const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2);
+        const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
         setValidationResult(result);
         onValidationChange?.(result.isValid);
-        if (result.isValid) {
-          onChange(result.e164Format);
-        }
       }
     }
   };
@@ -132,16 +116,15 @@ const MobileInput: React.FC<MobileInputProps> = ({
   const handleBlur = () => {
     setIsTouched(true);
     const raw = localNumber.replace(/\D/g, '');
-    if (raw.length === 0) {
+    if (!raw) {
       setValidationResult(null);
+      onValidationChange?.(false);
       return;
     }
-    const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2);
+    const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
     setValidationResult(result);
     onValidationChange?.(result.isValid);
-    if (result.isValid) {
-      onChange(result.e164Format);
-    }
+    onChange(result.e164 || selectedCountry.dialCode + raw);
   };
 
   return (
@@ -153,13 +136,13 @@ const MobileInput: React.FC<MobileInputProps> = ({
             type="button"
             className="country-selector-button"
             disabled={disabled}
-            onClick={() => !disabled && setIsDropdownOpen((v) => !v)}
+            onClick={() => !disabled && setIsDropdownOpen((v: boolean) => !v)}
             aria-haspopup="listbox"
             aria-expanded={isDropdownOpen}
           >
             <span className="country-flag">{selectedCountry.flag}</span>
             <span className="country-dial">{selectedCountry.dialCode}</span>
-            <span className="dropdown-arrow">▼</span>
+            <span className="dropdown-arrow">▾</span>
           </button>
 
           {isDropdownOpen && (
@@ -170,23 +153,23 @@ const MobileInput: React.FC<MobileInputProps> = ({
                 className="country-search"
                 placeholder="Search country..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               />
               <ul className="country-list" role="listbox">
                 {filteredCountries.length === 0 ? (
                   <li className="country-list-empty">No results</li>
                 ) : (
-                  filteredCountries.map((country) => (
+                  filteredCountries.map((country: Country) => (
                     <li
                       key={country.iso2}
                       role="option"
                       aria-selected={country.iso2 === selectedCountry.iso2}
-                      aria-label={`${country.name} ${country.dialCode}`}
                       className={`country-list-item${country.iso2 === selectedCountry.iso2 ? ' selected' : ''}`}
                       onMouseDown={() => handleCountrySelect(country)}
                     >
                       <span className="country-flag">{country.flag}</span>
                       <span className="country-dial-code">{country.dialCode}</span>
+                      <span className="country-name">{country.name}</span>
                     </li>
                   ))
                 )}
@@ -208,10 +191,15 @@ const MobileInput: React.FC<MobileInputProps> = ({
         />
       </div>
 
-      {/* Validation Error */}
+      {/* Validation feedback */}
       {isTouched && validationResult && !validationResult.isValid && (
         <div className="phone-error-message" role="alert">
           ⚠ {validationResult.errorMessage}
+        </div>
+      )}
+      {isTouched && validationResult && validationResult.isValid && (
+        <div className="phone-valid-message" role="status">
+          ✅
         </div>
       )}
     </div>
