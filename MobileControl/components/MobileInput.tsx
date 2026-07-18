@@ -184,7 +184,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     setIsDropdownOpen(false);
     setSearchQuery('');
     debouncedValidate.cancel();
-    const raw = localNumber.replace(/\D/g, '');
+    const raw = localNumber.replace(/\D/g, '').replace(/^0+/, '');
     if (isTouched && raw) {
       const result = validatePhone(raw, country.dialCode, country.iso2, country.name);
       setValidationResult(result);
@@ -198,7 +198,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
   // Formatting runs only on blur; validation is debounced so it doesn't compete
   // with rapid input.
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, '');
+    const raw = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
     setLocalNumber(raw);                                    // raw digits, no formatting
     onChange(raw ? selectedCountry.dialCode + raw : '');   // E.164 output immediately
 
@@ -217,7 +217,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
 
   // ── Strip formatting on focus so editing is clean ─────────────────────────
   const handleFocus = () => {
-    const raw = localNumber.replace(/\D/g, '');
+    const raw = localNumber.replace(/\D/g, '').replace(/^0+/, '');
     if (raw !== localNumber) setLocalNumber(raw);
   };
 
@@ -225,7 +225,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
   const handleBlur = () => {
     debouncedValidate.cancel();
     setIsTouched(true);
-    const raw = localNumber.replace(/\D/g, '');
+    const raw = localNumber.replace(/\D/g, '').replace(/^0+/, '');
     if (!raw) {
       setLocalNumber('');
       setValidationResult(null);
