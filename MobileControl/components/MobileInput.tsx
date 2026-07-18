@@ -3,7 +3,6 @@ import * as ReactDOM from 'react-dom';
 import { countries, Country } from '../utils/countries';
 import {
   validatePhone,
-  getPlaceholderForCountry,
   formatAsYouType,
   parseInitialValue,
   ValidationResult,
@@ -28,7 +27,7 @@ export interface MobileInputProps {
   initialValue: string;
   disabled: boolean;
   onChange: (e164Value: string) => void;
-  onValidationChange?: (isValid: boolean) => void;
+  onValidationChange?: (isValid: boolean, errorMessage: string | null) => void;
 }
 
 const MobileInput: React.FC<MobileInputProps> = ({
@@ -37,35 +36,64 @@ const MobileInput: React.FC<MobileInputProps> = ({
   onChange,
   onValidationChange,
 }) => {
-  const parsed = React.useMemo(() => parseInitialValue(initialValue, countries), []);
+  const parsedInit = React.useMemo(() => parseInitialValue(initialValue, countries), []);
 
-  const [selectedCountry, setSelectedCountry]     = React.useState<Country>(parsed.country);
-  const [localNumber, setLocalNumber]             = React.useState<string>(parsed.localNumber);
-  const [isTouched, setIsTouched]                 = React.useState<boolean>(false);
-  const [validationResult, setValidationResult]   = React.useState<ValidationResult | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen]       = React.useState<boolean>(false);
-  const [searchQuery, setSearchQuery]             = React.useState<string>('');
-  const [panelStyle, setPanelStyle]               = React.useState<React.CSSProperties>({});
+  const [selectedCountry, setSelectedCountry]   = React.useState<Country>(parsedInit.country);
+  const [localNumber, setLocalNumber]           = React.useState<string>(parsedInit.localNumber);
+  const [isTouched, setIsTouched]               = React.useState<boolean>(false);
+  const [validationResult, setValidationResult] = React.useState<ValidationResult | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen]     = React.useState<boolean>(false);
+  const [searchQuery, setSearchQuery]           = React.useState<string>('');
+  const [panelStyle, setPanelStyle]             = React.useState<React.CSSProperties>({});
 
-  const triggerRef      = React.useRef<HTMLButtonElement>(null); // trigger button
-  const panelRef        = React.useRef<HTMLDivElement>(null);    // portal panel
-  const searchRef       = React.useRef<HTMLInputElement>(null);
-  const selectedItemRef = React.useRef<HTMLLIElement>(null);
+  const triggerRef       = React.useRef<HTMLButtonElement>(null);
+  const panelRef         = React.useRef<HTMLDivElement>(null);
+  const searchRef        = React.useRef<HTMLInputElement>(null);
+  const selectedItemRef  = React.useRef<HTMLLIElement>(null);
+  // Track the last external value so we can detect server/migration updates
+  const lastExternalValue = React.useRef<string>(initialValue);
 
-  // ── Compute fixed position for the portal panel ──────────────────────────
+  // ── Sync state when PCF updateView delivers a new external value ──────────
+  // (e.g. data loaded via migration, form prefill, or record refresh)
+  React.useEffect(() => {
+    // Ignore echoes of values we already processed
+    if (initialValue === lastExternalValue.current) return;
+    lastExternalValue.current = initialValue;
+
+    if (!initialValue) {
+      setSelectedCountry(countries[0]);
+      setLocalNumber('');
+      setValidationResult(null);
+      onValidationChange?.(false, null);
+      return;
+    }
+
+    const reparsed = parseInitialValue(initialValue, countries);
+    // parseInitialValue returns localNumber='' when the value can't be fully
+    // parsed (e.g. a partial number echoed back while user is still typing).
+    // Only sync state for complete, parseable numbers.
+    if (!reparsed.localNumber) return;
+
+    setSelectedCountry(reparsed.country);
+    setLocalNumber(reparsed.localNumber);
+
+    const result = validatePhone(
+      reparsed.localNumber.replace(/\D/g, ''),
+      reparsed.country.dialCode,
+      reparsed.country.iso2,
+      reparsed.country.name
+    );
+    setValidationResult(result);
+    onValidationChange?.(result.isValid, result.errorMessage);
+  }, [initialValue]);
+
+  // ── Portal position ───────────────────────────────────────────────────────
   const computePanelStyle = React.useCallback(() => {
     if (!triggerRef.current) return;
     const r = triggerRef.current.getBoundingClientRect();
-    setPanelStyle({
-      position: 'fixed',
-      top:  r.bottom + 4,
-      left: r.left,
-      width: 280,
-      zIndex: 99999,
-    });
+    setPanelStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: 280, zIndex: 99999 });
   }, []);
 
-  // Re-compute on open; track scroll/resize while open
   React.useEffect(() => {
     if (!isDropdownOpen) return;
     computePanelStyle();
@@ -77,7 +105,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     };
   }, [isDropdownOpen, computePanelStyle]);
 
-  // ── Outside-click: close if click lands outside trigger AND panel ─────────
+  // ── Outside-click ─────────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!isDropdownOpen) return;
     const handler = (e: MouseEvent) => {
@@ -92,7 +120,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [isDropdownOpen]);
 
-  // ── Auto-scroll selected item into view + focus search ───────────────────
+  // ── Auto-scroll + focus search on open ───────────────────────────────────
   React.useEffect(() => {
     if (!isDropdownOpen) return;
     const raf = requestAnimationFrame(() => {
@@ -101,11 +129,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
     });
     return () => cancelAnimationFrame(raf);
   }, [isDropdownOpen]);
-
-  const placeholder = React.useMemo(
-    () => getPlaceholderForCountry(selectedCountry.iso2),
-    [selectedCountry.iso2]
-  );
 
   const filteredCountries: Country[] = React.useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -140,7 +163,7 @@ const MobileInput: React.FC<MobileInputProps> = ({
     if (isTouched && localNumber) {
       const result = validatePhone(localNumber, country.dialCode, country.iso2, country.name);
       setValidationResult(result);
-      onValidationChange?.(result.isValid);
+      onValidationChange?.(result.isValid, result.errorMessage);
       onChange(result.e164 || country.dialCode + localNumber.replace(/\D/g, ''));
     }
   };
@@ -153,11 +176,11 @@ const MobileInput: React.FC<MobileInputProps> = ({
     if (isTouched) {
       if (!raw) {
         setValidationResult(null);
-        onValidationChange?.(false);
+        onValidationChange?.(false, null);
       } else {
         const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
         setValidationResult(result);
-        onValidationChange?.(result.isValid);
+        onValidationChange?.(result.isValid, result.errorMessage);
       }
     }
   };
@@ -167,16 +190,15 @@ const MobileInput: React.FC<MobileInputProps> = ({
     const raw = localNumber.replace(/\D/g, '');
     if (!raw) {
       setValidationResult(null);
-      onValidationChange?.(false);
+      onValidationChange?.(false, null);
       return;
     }
     const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
     setValidationResult(result);
-    onValidationChange?.(result.isValid);
+    onValidationChange?.(result.isValid, result.errorMessage);
     onChange(result.e164 || selectedCountry.dialCode + raw);
   };
 
-  // Portal panel — rendered into document.body so it floats above PCF host
   const dropdownPanel = isDropdownOpen
     ? ReactDOM.createPortal(
         <div ref={panelRef} className="country-dropdown" style={panelStyle} role="dialog">
@@ -187,7 +209,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
             placeholder="Search country..."
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            // prevent blur on phone input while typing in search
             onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
           />
           <ul className="country-list" role="listbox">
@@ -203,8 +224,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
                     role="option"
                     aria-selected={isSelected}
                     className={`country-list-item${isSelected ? ' selected' : ''}`}
-                    // onMouseDown + preventDefault fixes blur-before-select race:
-                    // prevents the phone input from firing blur before selection commits
                     onMouseDown={(e: React.MouseEvent) => {
                       e.preventDefault();
                       handleCountrySelect(country);
@@ -227,7 +246,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
     <div className="mobile-input-wrapper">
       <div className={containerClass}>
 
-        {/* ── Country selector trigger ── */}
         <div className="country-selector">
           <button
             ref={triggerRef}
@@ -238,22 +256,17 @@ const MobileInput: React.FC<MobileInputProps> = ({
             aria-haspopup="listbox"
             aria-expanded={isDropdownOpen}
           >
-            <CountryFlag
-              iso2={selectedCountry.iso2}
-              name={selectedCountry.name}
-              className="country-flag"
-            />
+            <CountryFlag iso2={selectedCountry.iso2} name={selectedCountry.name} className="country-flag" />
             <span className="country-dial">{selectedCountry.dialCode}</span>
             <span className="dropdown-arrow">▾</span>
           </button>
         </div>
 
-        {/* ── Phone number input ── */}
         <input
           type="tel"
           className="phone-number-input"
           value={localNumber}
-          placeholder={placeholder}
+          // No placeholder — removed per requirement
           disabled={disabled}
           onChange={handleNumberChange}
           onBlur={handleBlur}
@@ -261,7 +274,6 @@ const MobileInput: React.FC<MobileInputProps> = ({
         />
       </div>
 
-      {/* Portal panel lives in document.body — does NOT affect PCF host layout */}
       {dropdownPanel}
 
       {isTouched && validationResult && !validationResult.isValid && (

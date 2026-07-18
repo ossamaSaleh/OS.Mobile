@@ -22,7 +22,26 @@
 .mobile-input-container:focus-within { border-color: #0078d4; }
 .mobile-input-container.is-valid     { border-color: #107c10; }
 .mobile-input-container.is-invalid   { border-color: #d13438; }
-.mobile-input-container.is-disabled  { background: #f3f2f1; opacity: 0.6; }
+.mobile-input-container.is-disabled  {
+  background: #f3f2f1;
+  /* No opacity fade — text stays near-black so locked values are readable */
+}
+
+/* Override browser's grey-out of disabled inputs/buttons */
+.mobile-input-container.is-disabled .country-selector-button,
+.mobile-input-container.is-disabled .country-selector-button .country-dial,
+.mobile-input-container.is-disabled .country-selector-button .dropdown-arrow {
+  color: #201f1e;
+  opacity: 1;
+  cursor: default;
+}
+
+.mobile-input-container.is-disabled .phone-number-input:disabled {
+  color: #201f1e;
+  -webkit-text-fill-color: #201f1e; /* Chrome/Edge override for disabled grey */
+  opacity: 1;
+  cursor: default;
+}
 
 /* ── Country selector (trigger only — panel is in a portal) ──────────────── */
 .country-selector {
