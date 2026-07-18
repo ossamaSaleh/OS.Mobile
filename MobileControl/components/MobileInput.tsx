@@ -7,6 +7,14 @@ import {
   parseInitialValue,
   ValidationResult,
 } from '../utils/validation';
+
+// Debounce helper — returns a cancel function
+function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number) {
+  let id: ReturnType<typeof setTimeout>;
+  const debounced = (...args: Parameters<T>) => { clearTimeout(id); id = setTimeout(() => fn(...args), ms); };
+  debounced.cancel = () => clearTimeout(id);
+  return debounced;
+}
 import './MobileInput.css';
 
 const CountryFlag: React.FC<{ iso2: string; name: string; className?: string }> = ({ iso2, name, className }) => (
@@ -46,12 +54,24 @@ const MobileInput: React.FC<MobileInputProps> = ({
   const [searchQuery, setSearchQuery]           = React.useState<string>('');
   const [panelStyle, setPanelStyle]             = React.useState<React.CSSProperties>({});
 
-  const triggerRef       = React.useRef<HTMLButtonElement>(null);
-  const panelRef         = React.useRef<HTMLDivElement>(null);
-  const searchRef        = React.useRef<HTMLInputElement>(null);
-  const selectedItemRef  = React.useRef<HTMLLIElement>(null);
-  // Track the last external value so we can detect server/migration updates
+  const triggerRef        = React.useRef<HTMLButtonElement>(null);
+  const panelRef          = React.useRef<HTMLDivElement>(null);
+  const searchRef         = React.useRef<HTMLInputElement>(null);
+  const selectedItemRef   = React.useRef<HTMLLIElement>(null);
   const lastExternalValue = React.useRef<string>(initialValue);
+
+  // Debounced validator — only runs 350ms after the user pauses typing.
+  // Defined as a stable ref so it isn't recreated on every render.
+  const debouncedValidate = React.useRef(
+    debounce((raw: string, dialCode: string, iso2: string, countryName: string,
+              setResult: (r: ValidationResult | null) => void,
+              notify: (v: boolean, m: string | null) => void) => {
+      if (!raw) { setResult(null); notify(false, null); return; }
+      const result = validatePhone(raw, dialCode, iso2, countryName);
+      setResult(result);
+      notify(result.isValid, result.errorMessage);
+    }, 350)
+  ).current;
 
   // ── Sync state when PCF updateView delivers a new external value ──────────
   // (e.g. data loaded via migration, form prefill, or record refresh)
@@ -120,6 +140,9 @@ const MobileInput: React.FC<MobileInputProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [isDropdownOpen]);
 
+  // Cancel pending debounced validation on unmount
+  React.useEffect(() => () => debouncedValidate.cancel(), []);
+
   // ── Auto-scroll + focus search on open ───────────────────────────────────
   React.useEffect(() => {
     if (!isDropdownOpen) return;
@@ -160,39 +183,59 @@ const MobileInput: React.FC<MobileInputProps> = ({
     setSelectedCountry(country);
     setIsDropdownOpen(false);
     setSearchQuery('');
-    if (isTouched && localNumber) {
-      const result = validatePhone(localNumber, country.dialCode, country.iso2, country.name);
+    debouncedValidate.cancel();
+    const raw = localNumber.replace(/\D/g, '');
+    if (isTouched && raw) {
+      const result = validatePhone(raw, country.dialCode, country.iso2, country.name);
       setValidationResult(result);
       onValidationChange?.(result.isValid, result.errorMessage);
-      onChange(result.e164 || country.dialCode + localNumber.replace(/\D/g, ''));
+      onChange(result.e164 || country.dialCode + raw);
     }
   };
 
+  // ── FAST path: zero libphonenumber-js work on every keystroke ─────────────
+  // We store raw digits immediately (instant re-render) and fire E.164 output.
+  // Formatting runs only on blur; validation is debounced so it doesn't compete
+  // with rapid input.
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '');
-    const formatted = formatAsYouType(raw, selectedCountry.iso2);
-    setLocalNumber(formatted);
-    onChange(raw ? selectedCountry.dialCode + raw : '');
+    setLocalNumber(raw);                                    // raw digits, no formatting
+    onChange(raw ? selectedCountry.dialCode + raw : '');   // E.164 output immediately
+
     if (isTouched) {
-      if (!raw) {
-        setValidationResult(null);
-        onValidationChange?.(false, null);
-      } else {
-        const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
-        setValidationResult(result);
-        onValidationChange?.(result.isValid, result.errorMessage);
-      }
+      // Debounce: wait for pause in typing before running libphonenumber-js
+      debouncedValidate(
+        raw,
+        selectedCountry.dialCode,
+        selectedCountry.iso2,
+        selectedCountry.name,
+        setValidationResult,
+        (v, m) => onValidationChange?.(v, m)
+      );
     }
   };
 
+  // ── Strip formatting on focus so editing is clean ─────────────────────────
+  const handleFocus = () => {
+    const raw = localNumber.replace(/\D/g, '');
+    if (raw !== localNumber) setLocalNumber(raw);
+  };
+
+  // ── SLOW path: format display + full validation on blur ───────────────────
   const handleBlur = () => {
+    debouncedValidate.cancel();
     setIsTouched(true);
     const raw = localNumber.replace(/\D/g, '');
     if (!raw) {
+      setLocalNumber('');
       setValidationResult(null);
       onValidationChange?.(false, null);
       return;
     }
+    // Format the display value once, on blur — no per-keystroke overhead
+    const formatted = formatAsYouType(raw, selectedCountry.iso2);
+    setLocalNumber(formatted);
+
     const result = validatePhone(raw, selectedCountry.dialCode, selectedCountry.iso2, selectedCountry.name);
     setValidationResult(result);
     onValidationChange?.(result.isValid, result.errorMessage);
@@ -266,9 +309,9 @@ const MobileInput: React.FC<MobileInputProps> = ({
           type="tel"
           className="phone-number-input"
           value={localNumber}
-          // No placeholder — removed per requirement
           disabled={disabled}
           onChange={handleNumberChange}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           inputMode="tel"
         />
