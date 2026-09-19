@@ -113,9 +113,12 @@ export const parseInitialValue = (
     const parsed = parsePhoneNumber(value);
     if (parsed) {
       const match = countryList.find((c) => c.iso2 === parsed.country);
+      // Use nationalNumber (digits only) so the trunk prefix (leading 0) is
+      // never included — the dial code is already shown in the country selector.
+      const national = String(parsed.nationalNumber).replace(/^0+/, '');
       return {
         country: match ?? defaultCountry,
-        localNumber: parsed.formatNational(),
+        localNumber: national,
       };
     }
   } catch {

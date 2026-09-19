@@ -6,7 +6,7 @@
     <property name="phoneValue"
               display-name-key="Phone_Value"
               description-key="Phone_Value_Desc"
-              of-type="SingleLine.Text"
+              of-type="SingleLine.Phone"
               usage="bound"
               required="true" />
     <resources>
