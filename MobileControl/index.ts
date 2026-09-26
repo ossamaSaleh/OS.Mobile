@@ -10,7 +10,7 @@ interface PCFUtility extends ComponentFramework.Utility {
     clearNotification(notificationId?: string): boolean;
 }
 
-const NOTIFICATION_ID = "ucc-mobile-invalid";
+const NOTIFICATION_ID = "os-mobile-invalid";
 
 export class MobileControl implements ComponentFramework.StandardControl<IInputs, IOutputs> {
     private _container: HTMLDivElement;

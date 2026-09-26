@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="UCC" constructor="MobileControl" version="1.0.1" display-name-key="MobileControl" description-key="MobileControl_Desc" control-type="standard">
+  <control namespace="OS" constructor="MobileControl" version="1.0.1" display-name-key="MobileControl" description-key="MobileControl_Desc" control-type="standard">
     <external-service-usage enabled="false">
     </external-service-usage>
     <property name="phoneValue"
